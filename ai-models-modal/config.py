@@ -5,7 +5,7 @@ import pathlib
 
 import modal
 
-MAX_FCST_LEAD_TIME = 24 * 10  # 10 days
+MAX_FCST_LEAD_TIME = 24 * 30  # 30 days
 
 
 # Set up a cache for assets leveraged during model runtime.
