@@ -294,7 +294,8 @@ class AIModel:
 
         self.use_gfs = use_gfs
 
-    def __enter__(self):
+    @modal.enter()
+    def _initialize_model(self):
         logger.info(f"   Model: {self.model_name}")
         logger.info(f"   Run initialization datetime: {self.model_init}")
         logger.info(f"   Forecast lead time: {self.lead_time}")
@@ -470,6 +471,7 @@ def generate_forecast(
     lead_time: int = 12,
     use_gfs: bool = False,
     skip_validate_env: bool = False,
+    upload_to_gcs: bool = True
 ):
     """Generate a forecast using the specified model."""
 
@@ -497,34 +499,37 @@ def generate_forecast(
     else:
         logger.info("   Did not find expected output file.")
 
-    # Try to upload to Google Cloud Storage
-    bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
-    service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
+    if upload_to_gcs: 
+        # Try to upload to Google Cloud Storage
+        bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
+        service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
 
-    if (bucket_name is None) or (not service_account_info):
-        logger.warning("Not able to access to Google Cloud Storage; skipping upload.")
-        return
+        if (bucket_name is None) or (not service_account_info):
+            logger.warning("Not able to access to Google Cloud Storage; skipping upload.")
+            return
 
-    logger.info(f"Attempting to upload to GCS bucket gs://{bucket_name}...")
-    gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
-        service_account_info
-    )
-    dest_blob_name = ai_model.out_pth.name
-    logger.info(f"Uploading to gs://{bucket_name}/{dest_blob_name}")
-    gcs_handler.upload_blob(
-        bucket_name,
-        ai_model.out_pth,
-        dest_blob_name,
-    )
-    logger.info("Checking that upload was successful...")
-    target_blob = gcs_handler.client.bucket(bucket_name).blob(dest_blob_name)
-    if target_blob.exists():
-        logger.info("   Success!")
-    else:
-        logger.info(
-            f"   Did not find expected blob ({dest_blob_name}) in GCS bucket"
-            f" ({bucket_name})."
+        logger.info(f"Attempting to upload to GCS bucket gs://{bucket_name}...")
+        gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
+            service_account_info
         )
+        dest_blob_name = ai_model.out_pth.name
+        logger.info(f"Uploading to gs://{bucket_name}/{dest_blob_name}")
+        gcs_handler.upload_blob(
+            bucket_name,
+            ai_model.out_pth,
+            dest_blob_name,
+        )
+        logger.info("Checking that upload was successful...")
+        target_blob = gcs_handler.client.bucket(bucket_name).blob(dest_blob_name)
+        if target_blob.exists():
+            logger.info("   Success!")
+        else:
+            logger.info(
+                f"   Did not find expected blob ({dest_blob_name}) in GCS bucket"
+                f" ({bucket_name})."
+            )
+    else:
+        logger.warning("Skipping upload to Google Cloud Storage.")
 
 
 @stub.function(
@@ -598,6 +603,7 @@ def main(
     make_template: bool = False,
     run_checks: bool = False,
     run_forecast: bool = False,
+    upload_to_gcs: bool = False
 ):
     """Entrypoint for triggering a remote ai-models weather forecast run.
 
@@ -633,4 +639,5 @@ def main(
             model_init=model_init,
             lead_time=lead_time,
             use_gfs=use_gfs,
+            upload_to_gcs=upload_to_gcs
         )
