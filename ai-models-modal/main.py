@@ -463,7 +463,7 @@ def _maybe_download_assets(model_name: str) -> None:
     secrets=[config.ENV_SECRETS],
     network_file_systems={str(config.CACHE_DIR): volume},
     allow_cross_region_volumes=True,
-    timeout=1_800,
+    timeout=86_400,
 )
 def generate_forecast(
     model_name: str = "panguweather",
